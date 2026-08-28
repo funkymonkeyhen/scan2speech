@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lectern — PDF to speech</title>
+<style>
+
+/* ---- colors ----
+background   #FFFFFF  page background
+text         #000000  default text
+link         #0000FF  unvisited link
+link-visited #800080  visited link
+navy         #000080  headings, section labels
+silver       #C0C0C0  button / panel face
+bevel-light  #FFFFFF  raised-edge highlight (top/left)
+bevel-dark   #808080  raised-edge shadow (bottom/right)
+border       #000000  solid hairline borders
+highlight    #FFFF00  active word (classic find-highlight yellow)
+error        #FF0000  skip-marker strikethrough
+progress     #008000  progress bar fill
+*/
+
+/* ---- reset ---- */
+*{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; }
+body{
+  background:#FFFFFF;
+  color:#000000;
+  font-family:"Times New Roman", Times, serif;
+  padding:48px 20px 140px;
+}
+.hidden{ display:none; }
+a{ color:#0000FF; }
+a:visited{ color:#800080; }
+a:hover{ color:#FF0000; }
+
+/* ---- page shell ---- */
+.app{ width:100%; max-width:880px; margin:0 auto; }
+
+/* ---- header ---- */
+.eyebrow{ margin:0 0 14px; }
+h1{
+  font-family:"Times New Roman", Times, serif;
+  font-weight:bold;
+  font-size:38px;
+  line-height:1.15;
+  margin:0 0 16px;
+  color:#000080;
+}
+.sub{
+  font-size:16px;
+  line-height:1.6;
+  color:#000000;
+  max-width:46em;
+  margin:0 0 40px;
+}
+
+/* ---- file dropzone ---- */
+.dropzone{
+  border:2px dashed #000000;
+  background:#FFFFFF;
+  padding:56px 24px;
+  text-align:center;
+  cursor:pointer;
+}
+.dropzone:hover, .dropzone.drag{
+  border-color:#0000FF;
+  background:#FFFFCC;
+}
+.dropzone svg{ width:40px; height:40px; margin-bottom:16px; color:#000000; }
+.dropzone.drag svg{ color:#0000FF; }
+.dz-title{ font-size:17px; font-weight:bold; margin:0 0 6px; color:#000000; }
+.dz-sub{ font-size:14px; color:#000000; margin:0; }
+.dz-sub .link{ color:#0000FF; text-decoration:underline; }
+
+/* ---- paste-text field ---- */
+.paste-divider{
+  text-align:center;
+  border-top:1px solid #808080;
+  margin:24px 0;
+  padding-top:14px;
+}
+.paste-area{ margin-bottom:40px; }
+.paste-area textarea{
+  display:block;
+  width:100%;
+  min-height:120px;
+  padding:14px;
+  font-family:"Times New Roman", Times, serif;
+  font-size:14px;
+  line-height:1.6;
+  margin-bottom:12px;
+}
+.paste-area textarea:focus{ outline:1px dotted #0000FF; }
+
+/* ---- workspace: two-column layout via float, stacks on narrow screens ---- */
+.workspace{ margin-top:8px; overflow:hidden; }
+.controls{ float:left; width:220px; }
+.page-panel{ margin-left:246px; }
+@media (max-width:640px){
+  .controls{ float:none; width:auto; margin-bottom:24px; }
+  .page-panel{ margin-left:0; }
+}
+
+/* ---- sidebar controls ---- */
+.control-group{ margin-bottom:20px; }
+.control-group label{
+  display:block;
+  font-size:11px;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  color:#000080;
+  margin-bottom:8px;
+}
+.control-group label span{ color:#0000FF; text-transform:none; letter-spacing:0; font-size:13px; float:right; }
+select{ display:block; width:100%; }
+input[type=range]{ display:block; width:100%; }
+
+.filters{ border-top:1px solid #808080; padding-top:16px; margin-bottom:20px; }
+.filters-label{
+  font-size:11px;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  color:#000080;
+  margin:0 0 10px;
+}
+.check-row{ display:block; margin-bottom:8px; }
+.check-row span{ font-size:13px; color:#000000; }
+
+.meta{ border-top:1px solid #808080; padding-top:16px; }
+.meta p{ margin:0 0 6px; font-size:13px; color:#000000; word-wrap:break-word; }
+.meta .filename{ color:#000080; font-weight:bold; }
+.meta .detected-lang{ font-size:11px; }
+
+.new-file-btn{ display:block; width:100%; }
+
+/* ---- text panel ---- */
+.page-panel{
+  background:#FFFFFF;
+  border:2px inset #808080;
+  padding:36px 38px;
+  color:#000000;
+  max-height:58vh;
+  overflow-y:auto;
+  font-size:18px;
+}
+.page-panel p{
+  font-family:"Times New Roman", Times, serif;
+  line-height:1.85;
+  margin:0 0 1.4em;
+}
+.word{ cursor:pointer; padding:1px; }
+.word:hover{ background:#FFFFCC; }
+.word.active{ background:#FFFF00; color:#000000; }
+.word.skipped{ color:#808080; text-decoration:line-through; text-decoration-color:#FF0000; }
+.empty-text{
+  font-family:Arial, Helvetica, sans-serif;
+  font-size:14px;
+  color:#808080;
+  text-align:center;
+  padding:40px 10px;
+}
+
+/* ---- transport bar (fixed to bottom) ---- */
+.transport{
+  position:fixed;
+  left:0; right:0; bottom:0;
+  margin:0 auto;
+  max-width:840px;
+  background:#C0C0C0;
+  border-top:2px solid #FFFFFF;
+  padding:16px 24px;
+}
+.transport table{ width:100%; border-collapse:collapse; }
+.transport td{ vertical-align:middle; padding:0 8px; }
+.transport td.grow{ width:100%; }
+.transport-btn{ width:38px; height:38px; }
+.transport-btn svg{ width:16px; height:16px; vertical-align:middle; }
+
+.progress-track{ height:14px; background:#FFFFFF; border:2px inset #808080; }
+.progress-fill{ height:100%; background:#008000; width:0%; }
+
+.status-label{
+  font-family:"Courier New", Courier, monospace;
+  font-size:12px;
+  font-weight:bold;
+  color:#FF0000;
+  white-space:nowrap;
+}
+.status-label.idle{ color:#000080; }
+
+.time-label{
+  font-family:"Courier New", Courier, monospace;
+  font-size:12px;
+  color:#000000;
+  white-space:nowrap;
+}
+
+/* ---- footer: accessibility options + copyright ---- */
+footer{
+  margin-top:40px;
+  padding-top:16px;
+  padding-bottom:32px;
+  border-top:1px solid #808080;
+  font-size:13px;
+  color:#000000;
+}
+footer p{ margin:0 0 10px; }
+footer label{ margin-left:10px; }
+
+/* ---- high contrast mode ---- */
+body.high-contrast{ background:#000000; color:#FFFF00; }
+body.high-contrast a{ color:#00FFFF; }
+body.high-contrast a:visited{ color:#FF00FF; }
+body.high-contrast a:hover{ color:#FFFFFF; }
+body.high-contrast h1{ color:#FFFF00; }
+body.high-contrast .sub, body.high-contrast .meta p, body.high-contrast .check-row span,
+body.high-contrast .control-group label, body.high-contrast .filters-label,
+body.high-contrast footer{ color:#FFFF00; }
+body.high-contrast .dropzone{ background:#000000; border-color:#FFFF00; }
+body.high-contrast .dropzone:hover, body.high-contrast .dropzone.drag{ background:#333300; border-color:#00FFFF; }
+body.high-contrast .dz-title, body.high-contrast .dz-sub{ color:#FFFF00; }
+body.high-contrast .paste-divider{ border-color:#FFFF00; }
+body.high-contrast .page-panel{ background:#000000; color:#FFFFFF; border-color:#FFFF00; }
+body.high-contrast .word:hover{ background:#333333; }
+body.high-contrast .word.active{ background:#FFFF00; color:#000000; }
+body.high-contrast .word.skipped{ color:#808080; }
+body.high-contrast .transport{ background:#000000; border-color:#FFFF00; }
+body.high-contrast .progress-track{ background:#000000; border-color:#FFFF00; }
+body.high-contrast .meta .filename{ color:#00FFFF; }
+body.high-contrast footer{ border-color:#FFFF00; }
+</style>
+</head>
+<body>
+<div class="app">
+  <p class="eyebrow">Text to speech · Document reader</p>
+  <h1>Every page finds its voice.</h1>
+  <p class="sub">Drop in a PDF, Word doc, HTML, or text file — or paste text directly. It's read aloud automatically, no manual setup. Click any word to jump the reading there.</p>
+
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.html,.htm" hidden />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>
+    <p class="dz-title" id="dzTitle">Drag a file here</p>
+    <p class="dz-sub" id="dzSub">.pdf, .docx, .txt, .html — or <span class="link">browse your files</span></p>
+  </div>
+
+  <div class="paste-divider" id="pasteDivider"><span>or paste text</span></div>
+  <div class="paste-area" id="pasteArea">
+    <textarea id="pasteInput" placeholder="Paste or type text here..."></textarea>
+    <button class="paste-btn" id="pasteBtn">Load text</button>
+  </div>
+
+  <section class="workspace hidden" id="workspace">
+    <aside class="controls">
+      <div class="control-group">
+        <label>Voice</label>
+        <select id="voiceSelect"></select>
+      </div>
+      <div class="control-group">
+        <label>Speed <span id="rateVal">1.0×</span></label>
+        <input type="range" id="rateSlider" min="0.5" max="2" step="0.1" value="1"/>
+      </div>
+      <div class="control-group">
+        <label>Pitch <span id="pitchVal">1.0</span></label>
+        <input type="range" id="pitchSlider" min="0" max="2" step="0.1" value="1"/>
+      </div>
+
+      <div class="filters">
+        <p class="filters-label">Skip while reading</p>
+        <label class="check-row"><input type="checkbox" id="skipAllCaps"/><span>ALL CAPS words</span></label>
+        <label class="check-row"><input type="checkbox" id="skipSymbols"/><span>Special symbols (@ © § — - etc.)</span></label>
+        <label class="check-row"><input type="checkbox" id="skipPageNumbers"/><span>Page numbers</span></label>
+        <label class="check-row"><input type="checkbox" id="skipUrls"/><span>URLs and emails</span></label>
+        <label class="check-row"><input type="checkbox" id="skipDates"/><span>Dates</span></label>
+        <label class="check-row"><input type="checkbox" id="skipWatermarks"/><span>Detected watermarks</span></label>
+      </div>
+
+      <div class="filters">
+        <p class="filters-label">Export</p>
+        <button class="new-file-btn" id="downloadTxtBtn">Download transcript (.txt)</button>
+      </div>
+
+      <div class="control-group meta">
+        <p class="filename" id="filenameLabel"></p>
+        <p id="wordcountLabel"></p>
+        <p class="detected-lang" id="detectedLangLabel"></p>
+      </div>
+      <button class="new-file-btn" id="newFileBtn">Load a different text</button>
+    </aside>
+
+    <div class="page-panel" id="pagePanel">
+      <div id="textOutput"></div>
+      <div class="empty-text hidden" id="emptyText">This PDF doesn't seem to contain selectable text — it may be a scanned image, so there's nothing here to read aloud.</div>
+    </div>
+  </section>
+</div>
+
+<footer id="siteFooter">
+  <p>
+    Accessibility:
+    <button type="button" id="decreaseFontBtn">A-</button>
+    <button type="button" id="resetFontBtn">Reset text size</button>
+    <button type="button" id="increaseFontBtn">A+</button>
+    <label><input type="checkbox" id="highContrastToggle"/> High contrast mode</label>
+  </p>
+  <p>Copyright 2026</p>
+</footer>
+
+<div class="transport hidden" id="transport">
+  <table>
+    <tr>
+      <td>
+        <button class="transport-btn play" id="playBtn" aria-label="Play">
+          <svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </td>
+      <td>
+        <button class="transport-btn" id="stopBtn" aria-label="Stop">
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+        </button>
+      </td>
+      <td class="grow"><div class="progress-track"><div class="progress-fill" id="progressFill"></div></div></td>
+      <td><span class="status-label idle" id="statusLabel">Ready</span></td>
+      <td><span class="time-label" id="timeLabel">0 / 0 words</span></td>
+    </tr>
+  </table>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const dzTitle = document.getElementById('dzTitle');
+const dzSub = document.getElementById('dzSub');
+const workspace = document.getElementById('workspace');
+const transport = document.getElementById('transport');
+const textOutput = document.getElementById('textOutput');
+const emptyText = document.getElementById('emptyText');
+const filenameLabel = document.getElementById('filenameLabel');
+const wordcountLabel = document.getElementById('wordcountLabel');
+const detectedLangLabel = document.getElementById('detectedLangLabel');
+const voiceSelect = document.getElementById('voiceSelect');
+const rateSlider = document.getElementById('rateSlider');
+const rateVal = document.getElementById('rateVal');
+const pitchSlider = document.getElementById('pitchSlider');
+const pitchVal = document.getElementById('pitchVal');
+const playBtn = document.getElementById('playBtn');
+const playIcon = document.getElementById('playIcon');
+const stopBtn = document.getElementById('stopBtn');
+const progressFill = document.getElementById('progressFill');
+const statusLabel = document.getElementById('statusLabel');
+const timeLabel = document.getElementById('timeLabel');
+const newFileBtn = document.getElementById('newFileBtn');
+const skipAllCaps = document.getElementById('skipAllCaps');
+const skipSymbols = document.getElementById('skipSymbols');
+const skipPageNumbers = document.getElementById('skipPageNumbers');
+const skipUrls = document.getElementById('skipUrls');
+const skipDates = document.getElementById('skipDates');
+const skipWatermarks = document.getElementById('skipWatermarks');
+const downloadTxtBtn = document.getElementById('downloadTxtBtn');
+const pasteDivider = document.getElementById('pasteDivider');
+const pasteArea = document.getElementById('pasteArea');
+const pasteInput = document.getElementById('pasteInput');
+const pasteBtn = document.getElementById('pasteBtn');
+const pagePanel = document.getElementById('pagePanel');
+const decreaseFontBtn = document.getElementById('decreaseFontBtn');
+const resetFontBtn = document.getElementById('resetFontBtn');
+const increaseFontBtn = document.getElementById('increaseFontBtn');
+const highContrastToggle = document.getElementById('highContrastToggle');
+
+let sentences = [];
+let wordSpans = [];
+let totalWords = 0;
+let isPlaying = false;
+let isPaused = false;
+let voices = [];
+let chunks = [];
+let chunkPointer = 0;
+
+const LANG_HINTS = {
+  en: ['the','and','of','to','in','is','that','for','with','was'],
+  es: ['de','la','que','el','en','y','los','del','las','un'],
+  fr: ['de','la','le','et','les','des','en','un','une','pour'],
+  de: ['der','die','und','das','den','von','mit','ist','ein','zu'],
+  it: ['di','la','che','il','un','per','non','sono','una','con'],
+  pt: ['de','que','ao','os','do','da','com','uma','para','em']
+};
+
+const URL_RE = /^(https?:\/\/|www\.)\S+$/i;
+const EMAIL_RE = /^[\w.+-]+@[\w-]+\.[a-z]{2,}$/i;
+const ALLCAPS_RE = /^[A-Z]{2,}$/;
+const SYMBOL_ONLY_RE = /^[^a-zA-Z0-9]+$/;
+const DASH_RE = /^[-\u2010\u2011\u2012\u2013\u2014\u2015]+$/;
+const PAGE_NUM_SENTENCE_RE = /^(page\s+)?\d{1,5}(\s*(of|\/)\s*\d{1,5})?\.?$/i;
+const MONTHS = new Set(['january','jan','february','feb','march','mar','april','apr','may','june','jun','july','jul','august','aug','september','sep','sept','october','oct','november','nov','december','dec']);
+const DAY_RE = /^\d{1,2}(st|nd|rd|th)?,?$/i;
+const YEAR_RE = /^\d{4}$/;
+const NUMERIC_DATE_RE = /^\d{1,4}[\/\-.]\d{1,2}[\/\-.]\d{1,4}$/;
+
+function detectLanguage(text){
+  const lower = text.toLowerCase();
+  const words = lower.split(/\W+/);
+  const sample = words.slice(0, Math.min(words.length, 4000));
+  const scores = {};
+  for(const lang in LANG_HINTS){
+    const set = new Set(LANG_HINTS[lang]);
+    scores[lang] = sample.reduce((c, w) => c + (set.has(w) ? 1 : 0), 0);
+  }
+  let best = 'en', bestScore = -1;
+  for(const lang in scores){ if(scores[lang] > bestScore){ best = lang; bestScore = scores[lang]; } }
+  return best;
+}
+
+function populateVoices(){
+  voices = speechSynthesis.getVoices();
+  voiceSelect.innerHTML = '';
+  voices.forEach((v, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${v.name} (${v.lang})`;
+    voiceSelect.appendChild(opt);
+  });
+}
+speechSynthesis.onvoiceschanged = populateVoices;
+populateVoices();
+
+function autoSelectVoiceForLang(langCode){
+  const idx = voices.findIndex(v => v.lang.toLowerCase().startsWith(langCode));
+  if(idx >= 0) voiceSelect.value = idx;
+}
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if(e.target.files.length) handleFile(e.target.files[0]); });
+
+newFileBtn.addEventListener('click', () => {
+  stopSpeaking();
+  workspace.classList.add('hidden');
+  transport.classList.add('hidden');
+  dropzone.classList.remove('hidden');
+  pasteDivider.classList.remove('hidden');
+  pasteArea.classList.remove('hidden');
+  dzTitle.textContent = 'Drag a file here';
+  dzSub.innerHTML = '.pdf, .docx, .txt, .html — or <span class="link">browse your files</span>';
+  fileInput.value = '';
+  pasteInput.value = '';
+});
+
+pasteBtn.addEventListener('click', () => {
+  const text = pasteInput.value.trim();
+  if(!text) return;
+  loadText(text, 'Pasted text');
+});
+
+async function handleFile(file){
+  const name = file.name.toLowerCase();
+  const ext = name.substring(name.lastIndexOf('.'));
+  const supported = ['.pdf', '.docx', '.txt', '.html', '.htm'];
+  if(!supported.includes(ext)){
+    dzTitle.textContent = 'Unsupported file type';
+    dzSub.textContent = 'Use a .pdf, .docx, .txt, or .html file.';
+    return;
+  }
+  dzTitle.textContent = 'Reading file…';
+  dzSub.textContent = file.name;
+
+  try{
+    let text = '';
+    if(ext === '.pdf'){
+      const buffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+      let fullText = '';
+      for(let p = 1; p <= pdf.numPages; p++){
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        const pageLines = content.items.map(item => item.str.trim()).filter(Boolean);
+        fullText += pageLines.join('\n') + '\n\n';
+      }
+      text = fullText;
+    } else if(ext === '.docx'){
+      const buffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+      text = result.value;
+    } else if(ext === '.html' || ext === '.htm'){
+      const raw = await file.text();
+      const withBreaks = raw.replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|tr|br)>/gi, '\n');
+      const doc = new DOMParser().parseFromString(withBreaks, 'text/html');
+      text = doc.body ? doc.body.textContent : withBreaks;
+    } else if(ext === '.txt'){
+      text = await file.text();
+    }
+    text = text.trim();
+    loadText(text, file.name);
+  }catch(err){
+    dzTitle.textContent = 'Could not read that file';
+    dzSub.textContent = 'Try a different file.';
+  }
+}
+
+function loadText(rawText, filename){
+  dropzone.classList.add('hidden');
+  pasteDivider.classList.add('hidden');
+  pasteArea.classList.add('hidden');
+  workspace.classList.remove('hidden');
+  filenameLabel.textContent = filename;
+
+  if(!rawText || rawText.trim().length < 2){
+    textOutput.classList.add('hidden');
+    emptyText.classList.remove('hidden');
+    wordcountLabel.textContent = '';
+    detectedLangLabel.textContent = '';
+    return;
+  }
+  textOutput.classList.remove('hidden');
+  emptyText.classList.add('hidden');
+  transport.classList.remove('hidden');
+
+  const collapsedText = rawText.replace(/\s+/g, ' ').trim();
+
+  sentences = collapsedText.match(/[^.!?]+[.!?]+|\s*[^.!?]+$/g) || [collapsedText];
+  sentences = sentences.map(s => s.trim()).filter(Boolean);
+
+  wordSpans = [];
+  textOutput.innerHTML = '';
+  const p = document.createElement('p');
+  let globalIndex = 0;
+
+  sentences.forEach((sentence, sIdx) => {
+    const isPageNumberSentence = PAGE_NUM_SENTENCE_RE.test(sentence.trim());
+    const words = sentence.split(/(\s+)/);
+    words.forEach(chunk => {
+      if(chunk.trim() === ''){
+        p.appendChild(document.createTextNode(chunk));
+      } else {
+        const span = document.createElement('span');
+        span.className = 'word';
+        span.textContent = chunk;
+        span.dataset.sentence = sIdx;
+        span.dataset.globalIndex = globalIndex;
+        span.dataset.allcaps = ALLCAPS_RE.test(chunk.replace(/[^A-Za-z]/g, '')) && /[A-Z]/.test(chunk) ? '1' : '0';
+        span.dataset.symbol = (SYMBOL_ONLY_RE.test(chunk) || DASH_RE.test(chunk)) ? '1' : '0';
+        span.dataset.pagenum = isPageNumberSentence ? '1' : '0';
+        span.dataset.url = (URL_RE.test(chunk) || EMAIL_RE.test(chunk)) ? '1' : '0';
+        span.dataset.spacedcaps = '0';
+        span.dataset.date = '0';
+        span.dataset.watermark = '0';
+        span.addEventListener('click', () => seekToWord(Number(span.dataset.globalIndex)));
+        p.appendChild(span);
+        wordSpans.push(span);
+        globalIndex++;
+      }
+    });
+    p.appendChild(document.createTextNode(' '));
+  });
+  textOutput.appendChild(p);
+
+  totalWords = wordSpans.length;
+  wordcountLabel.textContent = `${totalWords.toLocaleString()} words`;
+
+  const lang = detectLanguage(collapsedText);
+  detectedLangLabel.textContent = `Detected language: ${lang}`;
+  autoSelectVoiceForLang(lang);
+
+  markSpacedOutCaps();
+  markDates();
+  markWatermarks(rawText);
+
+  updateTimeLabel(0);
+  progressFill.style.width = '0%';
+  refreshSkippedStyling();
+}
+
+function letterCore(text){ return text.replace(/[^A-Za-z]/g, ''); }
+
+function isSingleLetterToken(text){
+  const core = letterCore(text);
+  return core.length === 1 && core === core.toUpperCase();
+}
+
+function markSpacedOutCaps(){
+  const MIN_RUN = 3;
+  let runStart = -1;
+  for(let i = 0; i <= wordSpans.length; i++){
+    const isSingle = i < wordSpans.length && isSingleLetterToken(wordSpans[i].textContent);
+    if(isSingle){
+      if(runStart === -1) runStart = i;
+    } else {
+      if(runStart !== -1 && (i - runStart) >= MIN_RUN){
+        for(let j = runStart; j < i; j++) wordSpans[j].dataset.spacedcaps = '1';
+      }
+      runStart = -1;
+    }
+  }
+}
+
+function monthCore(text){ return text.toLowerCase().replace(/[^a-z]/g, ''); }
+
+function markDates(){
+  wordSpans.forEach(span => {
+    if(NUMERIC_DATE_RE.test(span.textContent.trim())) span.dataset.date = '1';
+  });
+
+  for(let i = 0; i < wordSpans.length; i++){
+    if(wordSpans[i].dataset.date === '1') continue;
+    if(!MONTHS.has(monthCore(wordSpans[i].textContent))) continue;
+
+    const j = i + 1;
+    if(j < wordSpans.length && DAY_RE.test(wordSpans[j].textContent.trim())){
+      let matched = -1;
+      const k = j + 1;
+      if(k < wordSpans.length && YEAR_RE.test(wordSpans[k].textContent.trim())){
+        matched = k;
+      } else if(k < wordSpans.length && wordSpans[k].textContent.trim() === ',' && (k + 1) < wordSpans.length && YEAR_RE.test(wordSpans[k + 1].textContent.trim())){
+        matched = k + 1;
+      }
+      if(matched !== -1){
+        for(let m = i; m <= matched; m++) wordSpans[m].dataset.date = '1';
+        continue;
+      }
+    }
+
+    if(i > 0 && DAY_RE.test(wordSpans[i - 1].textContent.trim()) && (i + 1) < wordSpans.length && YEAR_RE.test(wordSpans[i + 1].textContent.trim())){
+      wordSpans[i - 1].dataset.date = '1';
+      wordSpans[i].dataset.date = '1';
+      wordSpans[i + 1].dataset.date = '1';
+    }
+  }
+}
+
+function markWatermarks(rawText){
+  const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const normalizeLine = s => s.toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim();
+
+  const counts = {};
+  const example = {};
+  lines.forEach(line => {
+    if(line.length >= 4 && line.length <= 160 && line.split(/\s+/).length <= 20){
+      const key = normalizeLine(line);
+      counts[key] = (counts[key] || 0) + 1;
+      if(!example[key]) example[key] = line;
+    }
+  });
+
+  const templates = Object.keys(counts)
+    .filter(k => counts[k] >= 3)
+    .map(k => example[k])
+    .sort((a, b) => b.split(/\s+/).length - a.split(/\s+/).length);
+
+  const normalizeToken = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const isNumericToken = s => /^\d+$/.test(s);
+
+  templates.forEach(template => {
+    const tokens = template.split(/\s+/).map(normalizeToken).filter(Boolean);
+    if(tokens.length === 0) return;
+    for(let i = 0; i <= wordSpans.length - tokens.length; i++){
+      let match = true;
+      for(let k = 0; k < tokens.length; k++){
+        const tTok = tokens[k];
+        const wTok = normalizeToken(wordSpans[i + k].textContent);
+        if(isNumericToken(tTok) && isNumericToken(wTok)) continue;
+        if(wTok !== tTok){ match = false; break; }
+      }
+      if(match){
+        for(let k = 0; k < tokens.length; k++) wordSpans[i + k].dataset.watermark = '1';
+      }
+    }
+  });
+}
+
+function shouldSkipWord(span){
+  return (skipAllCaps.checked && (span.dataset.allcaps === '1' || span.dataset.spacedcaps === '1'))
+      || (skipSymbols.checked && span.dataset.symbol === '1')
+      || (skipPageNumbers.checked && span.dataset.pagenum === '1')
+      || (skipUrls.checked && span.dataset.url === '1')
+      || (skipDates.checked && span.dataset.date === '1')
+      || (skipWatermarks.checked && span.dataset.watermark === '1');
+}
+
+function refreshSkippedStyling(){
+  wordSpans.forEach(span => {
+    span.classList.toggle('skipped', shouldSkipWord(span));
+  });
+}
+[skipAllCaps, skipSymbols, skipPageNumbers, skipUrls, skipDates, skipWatermarks].forEach(cb => cb.addEventListener('change', refreshSkippedStyling));
+
+function buildSpokenIndices(fromGlobalIndex){
+  const result = [];
+  for(let i = fromGlobalIndex; i < wordSpans.length; i++){
+    if(!shouldSkipWord(wordSpans[i])) result.push(i);
+  }
+  return result;
+}
+
+function groupIntoChunks(indices){
+  const groups = [];
+  let current = null;
+  indices.forEach(idx => {
+    const sIdx = Number(wordSpans[idx].dataset.sentence);
+    if(!current || current.sentence !== sIdx){
+      current = { sentence: sIdx, indices: [] };
+      groups.push(current);
+    }
+    current.indices.push(idx);
+  });
+  return groups;
+}
+
+function clearActiveWords(){
+  wordSpans.forEach(s => s.classList.remove('active'));
+}
+
+function setActiveWordGlobalIndex(idx){
+  clearActiveWords();
+  const span = wordSpans[idx];
+  if(span){
+    span.classList.add('active');
+    span.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+  updateTimeLabel(idx + 1);
+  progressFill.style.width = totalWords ? `${((idx + 1) / totalWords) * 100}%` : '0%';
+}
+
+function updateTimeLabel(spoken){
+  timeLabel.textContent = `${Math.min(spoken, totalWords)} / ${totalWords} words`;
+}
+
+function playFromGlobalIndex(startIndex){
+  speechSynthesis.cancel();
+  const indices = buildSpokenIndices(startIndex);
+  if(indices.length === 0){
+    isPlaying = false;
+    isPaused = false;
+    setPlayIcon(false);
+    setStatus('idle');
+    return;
+  }
+  chunks = groupIntoChunks(indices);
+  chunkPointer = 0;
+  isPlaying = true;
+  isPaused = false;
+  setPlayIcon(true);
+  setStatus('reading');
+  speakChunk();
+}
+
+function speakChunk(){
+  if(chunkPointer >= chunks.length){
+    isPlaying = false;
+    isPaused = false;
+    setPlayIcon(false);
+    setStatus('idle');
+    return;
+  }
+  const chunk = chunks[chunkPointer];
+  const text = chunk.indices.map(i => wordSpans[i].textContent).join(' ');
+  const utter = new SpeechSynthesisUtterance(text);
+  const voiceIdx = voiceSelect.value;
+  if(voices[voiceIdx]) utter.voice = voices[voiceIdx];
+  utter.rate = parseFloat(rateSlider.value);
+  utter.pitch = parseFloat(pitchSlider.value);
+
+  let localWordCount = 0;
+  utter.onboundary = (event) => {
+    if(event.name !== 'word' && event.name !== undefined && event.name !== 'sentence') return;
+    const globalIdx = chunk.indices[localWordCount];
+    if(globalIdx !== undefined) setActiveWordGlobalIndex(globalIdx);
+    localWordCount++;
+  };
+  utter.onend = () => {
+    if(!isPlaying) return;
+    chunkPointer++;
+    speakChunk();
+  };
+  speechSynthesis.speak(utter);
+}
+
+function setPlayIcon(playing){
+  playIcon.innerHTML = playing
+    ? '<rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/>'
+    : '<path d="M8 5v14l11-7z"/>';
+  playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+}
+
+function setStatus(state){
+  if(state === 'reading'){
+    statusLabel.textContent = 'Reading';
+    statusLabel.classList.remove('idle');
+  } else if(state === 'paused'){
+    statusLabel.textContent = 'Paused';
+    statusLabel.classList.add('idle');
+  } else {
+    statusLabel.textContent = 'Ready';
+    statusLabel.classList.add('idle');
+  }
+}
+
+function seekToWord(globalIndex){
+  if(!totalWords) return;
+  playFromGlobalIndex(globalIndex);
+}
+
+playBtn.addEventListener('click', () => {
+  if(!totalWords) return;
+  if(isPlaying && !isPaused){
+    speechSynthesis.pause();
+    isPaused = true;
+    setPlayIcon(false);
+    setStatus('paused');
+  } else if(isPaused){
+    speechSynthesis.resume();
+    isPaused = false;
+    setPlayIcon(true);
+    setStatus('reading');
+  } else {
+    playFromGlobalIndex(0);
+  }
+});
+
+stopBtn.addEventListener('click', stopSpeaking);
+
+function stopSpeaking(){
+  speechSynthesis.cancel();
+  isPlaying = false;
+  isPaused = false;
+  chunks = [];
+  chunkPointer = 0;
+  clearActiveWords();
+  setPlayIcon(false);
+  setStatus('idle');
+  updateTimeLabel(0);
+  progressFill.style.width = '0%';
+}
+
+rateSlider.addEventListener('input', () => { rateVal.textContent = `${parseFloat(rateSlider.value).toFixed(1)}×`; });
+pitchSlider.addEventListener('input', () => { pitchVal.textContent = parseFloat(pitchSlider.value).toFixed(1); });
+
+/* ---- export: transcript download ---- */
+function baseFilename(){
+  const raw = filenameLabel.textContent || 'transcript';
+  return raw.replace(/\.[^.]+$/, '') || 'transcript';
+}
+
+function triggerDownload(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+downloadTxtBtn.addEventListener('click', () => {
+  if(!totalWords) return;
+  const spokenText = wordSpans.filter(s => !shouldSkipWord(s)).map(s => s.textContent).join(' ');
+  const blob = new Blob([spokenText], { type: 'text/plain' });
+  triggerDownload(blob, baseFilename() + '.txt');
+});
+
+/* ---- accessibility: text size + high contrast ---- */
+let readingFontSize = 18;
+
+function applyReadingFontSize(){
+  pagePanel.style.fontSize = readingFontSize + 'px';
+}
+
+decreaseFontBtn.addEventListener('click', () => {
+  readingFontSize = Math.max(12, readingFontSize - 2);
+  applyReadingFontSize();
+});
+increaseFontBtn.addEventListener('click', () => {
+  readingFontSize = Math.min(32, readingFontSize + 2);
+  applyReadingFontSize();
+});
+resetFontBtn.addEventListener('click', () => {
+  readingFontSize = 18;
+  applyReadingFontSize();
+});
+
+highContrastToggle.addEventListener('change', () => {
+  document.body.classList.toggle('high-contrast', highContrastToggle.checked);
+});
+
+</script>
+</body>
+</html>
