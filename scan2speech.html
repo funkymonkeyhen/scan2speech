@@ -3,25 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Lectern — PDF to speech</title>
+<title>Scan 2 Speech</title>
 <style>
 
-/* ---- colors ----
-background   #FFFFFF  page background
-text         #000000  default text
-link         #0000FF  unvisited link
-link-visited #800080  visited link
-navy         #000080  headings, section labels
-silver       #C0C0C0  button / panel face
-bevel-light  #FFFFFF  raised-edge highlight (top/left)
-bevel-dark   #808080  raised-edge shadow (bottom/right)
-border       #000000  solid hairline borders
-highlight    #FFFF00  active word (classic find-highlight yellow)
-error        #FF0000  skip-marker strikethrough
-progress     #008000  progress bar fill
-*/
-
-/* ---- reset ---- */
 *{ box-sizing:border-box; }
 html,body{ margin:0; padding:0; }
 body{
@@ -35,10 +19,8 @@ a{ color:#0000FF; }
 a:visited{ color:#800080; }
 a:hover{ color:#FF0000; }
 
-/* ---- page shell ---- */
 .app{ width:100%; max-width:880px; margin:0 auto; }
 
-/* ---- header ---- */
 .eyebrow{ margin:0 0 14px; }
 h1{
   font-family:"Times New Roman", Times, serif;
@@ -56,7 +38,7 @@ h1{
   margin:0 0 40px;
 }
 
-/* ---- file dropzone ---- */
+/* file dropzone */
 .dropzone{
   border:2px dashed #000000;
   background:#FFFFFF;
@@ -94,7 +76,6 @@ h1{
 }
 .paste-area textarea:focus{ outline:1px dotted #0000FF; }
 
-/* ---- workspace: two-column layout via float, stacks on narrow screens ---- */
 .workspace{ margin-top:8px; overflow:hidden; }
 .controls{ float:left; width:220px; }
 .page-panel{ margin-left:246px; }
@@ -103,7 +84,6 @@ h1{
   .page-panel{ margin-left:0; }
 }
 
-/* ---- sidebar controls ---- */
 .control-group{ margin-bottom:20px; }
 .control-group label{
   display:block;
@@ -135,7 +115,6 @@ input[type=range]{ display:block; width:100%; }
 
 .new-file-btn{ display:block; width:100%; }
 
-/* ---- text panel ---- */
 .page-panel{
   background:#FFFFFF;
   border:2px inset #808080;
@@ -162,7 +141,6 @@ input[type=range]{ display:block; width:100%; }
   padding:40px 10px;
 }
 
-/* ---- transport bar (fixed to bottom) ---- */
 .transport{
   position:fixed;
   left:0; right:0; bottom:0;
@@ -197,7 +175,6 @@ input[type=range]{ display:block; width:100%; }
   white-space:nowrap;
 }
 
-/* ---- footer: accessibility options + copyright ---- */
 footer{
   margin-top:40px;
   padding-top:16px;
@@ -209,7 +186,6 @@ footer{
 footer p{ margin:0 0 10px; }
 footer label{ margin-left:10px; }
 
-/* ---- high contrast mode ---- */
 body.high-contrast{ background:#000000; color:#FFFF00; }
 body.high-contrast a{ color:#00FFFF; }
 body.high-contrast a:visited{ color:#FF00FF; }
@@ -234,9 +210,9 @@ body.high-contrast footer{ border-color:#FFFF00; }
 </head>
 <body>
 <div class="app">
-  <p class="eyebrow">Text to speech · Document reader</p>
-  <h1>Every page finds its voice.</h1>
-  <p class="sub">Drop in a PDF, Word doc, HTML, or text file — or paste text directly. It's read aloud automatically, no manual setup. Click any word to jump the reading there.</p>
+  <p class="eyebrow">Scans doc for text · Reads out loud</p>
+  <h1>Scan to Speech.</h1>
+  <p class="sub">Drop in a PDF, Word doc, HTML, or text file - or paste text directly. It's read aloud automatically. Click any word to jump the reading there.</p>
 
   <div class="dropzone" id="dropzone">
     <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.html,.htm" hidden />
