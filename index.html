@@ -207,6 +207,31 @@ body.high-contrast .transport{ background:#000000; border-color:#FFFF00; }
 body.high-contrast .progress-track{ background:#000000; border-color:#FFFF00; }
 body.high-contrast .meta .filename{ color:#00FFFF; }
 body.high-contrast footer{ border-color:#FFFF00; }
+
+/* ---- dog mode ---- */
+#dogModeBtn{ display:block; width:100%; margin-top:12px; }
+#dogModeContainer{
+  margin-top:16px;
+  text-align:center;
+}
+#dogModeImage{
+  display:none;
+  width:120px;
+  height:auto;
+  margin:0 auto;
+}
+#dogModeImage.dog-visible{
+  display:block;
+  animation:dogBob 0.6s ease-in-out infinite alternate;
+}
+#dogModeImage.dog-paused{
+  animation-play-state:paused;
+}
+@keyframes dogBob{
+  from{ transform:translateY(0); }
+  to{ transform:translateY(-14px); }
+}
+
 </style>
 </head>
 <body>
@@ -264,6 +289,10 @@ body.high-contrast footer{ border-color:#FFFF00; }
         <p class="detected-lang" id="detectedLangLabel"></p>
       </div>
       <button class="new-file-btn" id="newFileBtn">Load a different text</button>
+      <button type="button" id="dogModeBtn">Dog Mode</button>
+      <div id="dogModeContainer">
+        <img id="dogModeImage" src="dubs.png" alt="Dog Mode">
+      </div>
     </aside>
 
     <div class="page-panel" id="pagePanel">
@@ -348,6 +377,9 @@ const decreaseFontBtn = document.getElementById('decreaseFontBtn');
 const resetFontBtn = document.getElementById('resetFontBtn');
 const increaseFontBtn = document.getElementById('increaseFontBtn');
 const highContrastToggle = document.getElementById('highContrastToggle');
+const dogModeBtn = document.getElementById('dogModeBtn');
+const dogModeImage = document.getElementById('dogModeImage');
+let dogModeEnabled = false;
 
 let sentences = [];
 let wordSpans = [];
@@ -717,6 +749,7 @@ function playFromGlobalIndex(startIndex){
   if(indices.length === 0){
     isPlaying = false;
     isPaused = false;
+    dogModeImage.classList.remove('dog-visible', 'dog-paused');
     setPlayIcon(false);
     setStatus('idle');
     return;
@@ -725,6 +758,7 @@ function playFromGlobalIndex(startIndex){
   chunkPointer = 0;
   isPlaying = true;
   isPaused = false;
+  if(dogModeEnabled) dogModeImage.classList.add('dog-visible');
   setPlayIcon(true);
   setStatus('reading');
   speakChunk();
@@ -734,6 +768,7 @@ function speakChunk(){
   if(chunkPointer >= chunks.length){
     isPlaying = false;
     isPaused = false;
+    dogModeImage.classList.remove('dog-visible', 'dog-paused');
     setPlayIcon(false);
     setStatus('idle');
     return;
@@ -791,11 +826,13 @@ playBtn.addEventListener('click', () => {
   if(isPlaying && !isPaused){
     speechSynthesis.pause();
     isPaused = true;
+    if(dogModeEnabled) dogModeImage.classList.add('dog-paused');
     setPlayIcon(false);
     setStatus('paused');
   } else if(isPaused){
     speechSynthesis.resume();
     isPaused = false;
+    if(dogModeEnabled) dogModeImage.classList.remove('dog-paused');
     setPlayIcon(true);
     setStatus('reading');
   } else {
@@ -809,6 +846,7 @@ function stopSpeaking(){
   speechSynthesis.cancel();
   isPlaying = false;
   isPaused = false;
+  dogModeImage.classList.remove('dog-visible', 'dog-paused');
   chunks = [];
   chunkPointer = 0;
   clearActiveWords();
@@ -843,6 +881,23 @@ downloadTxtBtn.addEventListener('click', () => {
   const spokenText = wordSpans.filter(s => !shouldSkipWord(s)).map(s => s.textContent).join(' ');
   const blob = new Blob([spokenText], { type: 'text/plain' });
   triggerDownload(blob, baseFilename() + '.txt');
+});
+
+
+/* ---- dog mode ---- */
+dogModeBtn.addEventListener('click', () => {
+  dogModeEnabled = !dogModeEnabled;
+  dogModeBtn.textContent = dogModeEnabled ? 'Dog Mode: On' : 'Dog Mode';
+
+  if(!dogModeEnabled){
+    dogModeImage.classList.remove('dog-visible', 'dog-paused');
+    return;
+  }
+
+  if(isPlaying){
+    dogModeImage.classList.add('dog-visible');
+    if(isPaused) dogModeImage.classList.add('dog-paused');
+  }
 });
 
 /* ---- accessibility: text size + high contrast ---- */
