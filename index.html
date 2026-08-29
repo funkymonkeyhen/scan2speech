@@ -228,6 +228,8 @@ body.high-contrast footer{ border-color:#FFFF00; }
 }
 #dogModeImage.dog-visible{
   display:block;
+}
+#dogModeImage.dog-animating{
   animation:dogBob 0.16s ease-in-out infinite alternate;
 }
 #dogModeImage.dog-paused{
@@ -759,7 +761,8 @@ function playFromGlobalIndex(startIndex){
   if(indices.length === 0){
     isPlaying = false;
     isPaused = false;
-    dogModeImage.classList.remove('dog-visible', 'dog-paused');
+    dogModeImage.classList.remove('dog-animating', 'dog-paused');
+    if (!dogModeEnabled) dogModeImage.classList.remove('dog-visible');
     setPlayIcon(false);
     setStatus('idle');
     return;
@@ -768,7 +771,10 @@ function playFromGlobalIndex(startIndex){
   chunkPointer = 0;
   isPlaying = true;
   isPaused = false;
-  if(dogModeEnabled) dogModeImage.classList.add('dog-visible');
+  if(dogModeEnabled) {
+    dogModeImage.classList.add('dog-visible', 'dog-animating');
+    dogModeImage.classList.remove('dog-paused');
+  }
   setPlayIcon(true);
   setStatus('reading');
   speakChunk();
@@ -778,7 +784,8 @@ function speakChunk(){
   if(chunkPointer >= chunks.length){
     isPlaying = false;
     isPaused = false;
-    dogModeImage.classList.remove('dog-visible', 'dog-paused');
+    dogModeImage.classList.remove('dog-animating', 'dog-paused');
+    if (!dogModeEnabled) dogModeImage.classList.remove('dog-visible');
     setPlayIcon(false);
     setStatus('idle');
     return;
@@ -856,7 +863,8 @@ function stopSpeaking(){
   speechSynthesis.cancel();
   isPlaying = false;
   isPaused = false;
-  dogModeImage.classList.remove('dog-visible', 'dog-paused');
+  dogModeImage.classList.remove('dog-animating', 'dog-paused');
+  if(!dogModeEnabled) dogModeImage.classList.remove('dog-visible');
   chunks = [];
   chunkPointer = 0;
   clearActiveWords();
@@ -893,21 +901,22 @@ downloadTxtBtn.addEventListener('click', () => {
   triggerDownload(blob, baseFilename() + '.txt');
 });
 
-
 /* ---- dog mode ---- */
 dogModeBtn.addEventListener('click', () => {
   dogModeEnabled = !dogModeEnabled;
   dogModeBtn.textContent = dogModeEnabled ? 'Dog Mode: On' : 'Dog Mode';
 
   if(!dogModeEnabled){
-    dogModeImage.classList.remove('dog-visible', 'dog-paused');
+    dogModeImage.classList.remove('dog-visible', 'dog-animating', 'dog-paused');
     return;
   }
 
+  // Always show image when Dog Mode is active
   dogModeImage.classList.add('dog-visible');
 
+  // Trigger bounce animation only if active playback is currently running
   if(isPlaying){
-    dogModeImage.classList.add('dog-visible');
+    dogModeImage.classList.add('dog-animating');
     if(isPaused) dogModeImage.classList.add('dog-paused');
   }
 });
