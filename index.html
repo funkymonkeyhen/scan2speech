@@ -23,14 +23,27 @@ a:hover{ color:#FF0000; }
 .app{ width:100%; max-width:880px; margin:0 auto; }
 
 .eyebrow{ margin:0 0 14px; }
+
+.header-row{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  margin:0 0 16px;
+}
+.header-icon{
+  width:48px;
+  height:auto;
+  flex:0 0 48px;
+}
 h1{
   font-family:"Times New Roman", Times, serif;
   font-weight:bold;
   font-size:38px;
   line-height:1.15;
-  margin:0 0 16px;
+  margin:0;
   color:#000080;
 }
+
 .sub{
   font-size:16px;
   line-height:1.6;
@@ -185,7 +198,6 @@ footer{
   color:#000000;
 }
 footer p{ margin:0 0 10px; }
-footer label{ margin-left:10px; }
 
 body.high-contrast{ background:#000000; color:#FFFF00; }
 body.high-contrast a{ color:#00FFFF; }
@@ -248,15 +260,20 @@ body.high-contrast footer{ border-color:#FFFF00; }
 </head>
 <body>
 <div class="app">
-  <p class="eyebrow">Scans doc for text · Reads out loud</p>
-  <h1>Scan 2 Speech.</h1>
-  <p class="sub">Drop in a PDF, Word doc, HTML, or text file - or paste text directly. It's read aloud automatically. Click any word to jump the reading there.</p>
+  <p class="eyebrow">Scans doc & images for text · Reads out loud</p>
+  
+  <div class="header-row">
+    <img src="dubs.png" alt="Dubs Icon" class="header-icon">
+    <h1>Scan to Speech.</h1>
+  </div>
+
+  <p class="sub">Drop in a PDF, Word doc, HTML, image file (.png, .jpg), or paste text directly. It's scanned and read aloud automatically. Click any word to jump the reading there.</p>
 
   <div class="dropzone" id="dropzone">
-    <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.html,.htm" hidden />
+    <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.html,.htm,.png,.jpg,.jpeg,.webp,.bmp" hidden />
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>
     <p class="dz-title" id="dzTitle">Drag a file here</p>
-    <p class="dz-sub" id="dzSub">.pdf, .docx, .txt, .html — or <span class="link">browse your files</span></p>
+    <p class="dz-sub" id="dzSub">.pdf, .docx, .txt, .html, images (.png, .jpg) — or <span class="link">browse your files</span></p>
   </div>
 
   <div class="paste-divider" id="pasteDivider"><span>or paste text</span></div>
@@ -307,7 +324,7 @@ body.high-contrast footer{ border-color:#FFFF00; }
     <div class="reading-area">
       <div class="page-panel" id="pagePanel">
         <div id="textOutput"></div>
-        <div class="empty-text hidden" id="emptyText">This PDF doesn't seem to contain selectable text — it may be a scanned image, so there's nothing here to read aloud.</div>
+        <div class="empty-text hidden" id="emptyText">No readable text found in this file or image.</div>
       </div>
       <img id="dogModeImage" src="dubs.png" alt="Dubs">
     </div>
@@ -317,9 +334,6 @@ body.high-contrast footer{ border-color:#FFFF00; }
 <footer id="siteFooter">
   <p>
     Accessibility:
-    <button type="button" id="decreaseFontBtn">A-</button>
-    <button type="button" id="resetFontBtn">Reset text size</button>
-    <button type="button" id="increaseFontBtn">A+</button>
     <label><input type="checkbox" id="highContrastToggle"/> High contrast mode</label>
   </p>
   <p>Copyright 2026</p>
@@ -347,6 +361,7 @@ body.high-contrast footer{ border-color:#FFFF00; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
@@ -385,9 +400,6 @@ const pasteArea = document.getElementById('pasteArea');
 const pasteInput = document.getElementById('pasteInput');
 const pasteBtn = document.getElementById('pasteBtn');
 const pagePanel = document.getElementById('pagePanel');
-const decreaseFontBtn = document.getElementById('decreaseFontBtn');
-const resetFontBtn = document.getElementById('resetFontBtn');
-const increaseFontBtn = document.getElementById('increaseFontBtn');
 const highContrastToggle = document.getElementById('highContrastToggle');
 const dogModeBtn = document.getElementById('dogModeBtn');
 const dogModeImage = document.getElementById('dogModeImage');
@@ -472,7 +484,7 @@ newFileBtn.addEventListener('click', () => {
   pasteDivider.classList.remove('hidden');
   pasteArea.classList.remove('hidden');
   dzTitle.textContent = 'Drag a file here';
-  dzSub.innerHTML = '.pdf, .docx, .txt, .html — or <span class="link">browse your files</span>';
+  dzSub.innerHTML = '.pdf, .docx, .txt, .html, images (.png, .jpg) — or <span class="link">browse your files</span>';
   fileInput.value = '';
   pasteInput.value = '';
 });
@@ -486,18 +498,31 @@ pasteBtn.addEventListener('click', () => {
 async function handleFile(file){
   const name = file.name.toLowerCase();
   const ext = name.substring(name.lastIndexOf('.'));
-  const supported = ['.pdf', '.docx', '.txt', '.html', '.htm'];
-  if(!supported.includes(ext)){
+  const supportedDoc = ['.pdf', '.docx', '.txt', '.html', '.htm'];
+  const supportedImg = ['.png', '.jpg', '.jpeg', '.webp', '.bmp'];
+
+  if(!supportedDoc.includes(ext) && !supportedImg.includes(ext)){
     dzTitle.textContent = 'Unsupported file type';
-    dzSub.textContent = 'Use a .pdf, .docx, .txt, or .html file.';
+    dzSub.textContent = 'Use a PDF, Word doc, HTML, TXT, or Image file (.png, .jpg).';
     return;
   }
+
   dzTitle.textContent = 'Reading file…';
   dzSub.textContent = file.name;
 
   try{
     let text = '';
-    if(ext === '.pdf'){
+    if(supportedImg.includes(ext)){
+      dzTitle.textContent = 'Scanning image for text (OCR)…';
+      const result = await Tesseract.recognize(file, 'eng', {
+        logger: m => {
+          if(m.status === 'recognizing text'){
+            dzSub.textContent = `Scanning: ${Math.round(m.progress * 100)}%`;
+          }
+        }
+      });
+      text = result.data.text;
+    } else if(ext === '.pdf'){
       const buffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
       let fullText = '';
@@ -524,7 +549,7 @@ async function handleFile(file){
     loadText(text, file.name);
   }catch(err){
     dzTitle.textContent = 'Could not read that file';
-    dzSub.textContent = 'Try a different file.';
+    dzSub.textContent = 'Try a different file or image.';
   }
 }
 
@@ -911,36 +936,15 @@ dogModeBtn.addEventListener('click', () => {
     return;
   }
 
-  // Always show image when Dog Mode is active
   dogModeImage.classList.add('dog-visible');
 
-  // Trigger bounce animation only if active playback is currently running
   if(isPlaying){
     dogModeImage.classList.add('dog-animating');
     if(isPaused) dogModeImage.classList.add('dog-paused');
   }
 });
 
-/* ---- accessibility: text size + high contrast ---- */
-let readingFontSize = 18;
-
-function applyReadingFontSize(){
-  pagePanel.style.fontSize = readingFontSize + 'px';
-}
-
-decreaseFontBtn.addEventListener('click', () => {
-  readingFontSize = Math.max(12, readingFontSize - 2);
-  applyReadingFontSize();
-});
-increaseFontBtn.addEventListener('click', () => {
-  readingFontSize = Math.min(32, readingFontSize + 2);
-  applyReadingFontSize();
-});
-resetFontBtn.addEventListener('click', () => {
-  readingFontSize = 18;
-  applyReadingFontSize();
-});
-
+/* ---- accessibility: high contrast ---- */
 highContrastToggle.addEventListener('change', () => {
   document.body.classList.toggle('high-contrast', highContrastToggle.checked);
 });
