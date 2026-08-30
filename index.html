@@ -261,7 +261,7 @@ body.high-contrast footer{ border-color:#FFFF00; }
 <body>
 <div class="app">
   <p class="eyebrow">Scans doc & images for text · Reads out loud</p>
-  
+
   <div class="header-row">
     <img src="dubs.png" alt="Dubs Icon" class="header-icon">
     <h1>Scan to Speech.</h1>
@@ -526,11 +526,38 @@ async function handleFile(file){
       const buffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
       let fullText = '';
+
       for(let p = 1; p <= pdf.numPages; p++){
         const page = await pdf.getPage(p);
         const content = await page.getTextContent();
         const pageLines = content.items.map(item => item.str.trim()).filter(Boolean);
-        fullText += pageLines.join('\n') + '\n\n';
+        let pageText = pageLines.join('\n');
+
+        // Fallback: if this page has no real text layer (e.g. a scanned
+        // page — just an embedded image, no text objects), render it to
+        // a canvas and run OCR on it instead.
+        if(pageText.trim().length < 4){
+          dzTitle.textContent = `Scanning page ${p} of ${pdf.numPages} (OCR)…`;
+          dzSub.textContent = 'No text layer found on this page — running OCR.';
+
+          const viewport = page.getViewport({ scale: 2.0 });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+
+          const ocrResult = await Tesseract.recognize(canvas, 'eng', {
+            logger: m => {
+              if(m.status === 'recognizing text'){
+                dzSub.textContent = `Scanning page ${p}/${pdf.numPages}: ${Math.round(m.progress * 100)}%`;
+              }
+            }
+          });
+          pageText = ocrResult.data.text.trim();
+        }
+
+        fullText += pageText + '\n\n';
       }
       text = fullText;
     } else if(ext === '.docx'){
